@@ -1,6 +1,7 @@
 package canvas
 
 import (
+	"encoding/xml"
 	"image/color"
 	"math"
 	"testing"
@@ -34,6 +35,84 @@ func TestCSSColor(t *testing.T) {
 	test.String(t, CSSColor(Aliceblue).String(), "#f0f8ff")
 	test.String(t, CSSColor(color.RGBA{255, 255, 255, 0}).String(), "rgba(0,0,0,0)")
 	test.String(t, CSSColor(color.RGBA{85, 85, 17, 85}).String(), "rgba(255,255,51,.33333333)")
+}
+
+func TestHexColor(t *testing.T) {
+	var (
+		err error
+		h   HexColor
+	)
+
+	// Test valid data
+
+	h, err = NewHexColor("#FF9900")
+	test.Error(t, err)
+	test.String(t, h.String(), "#ff9900")
+
+	h, err = NewHexColor("FF9900")
+	test.Error(t, err)
+	test.String(t, h.String(), "#ff9900")
+
+	h, err = NewHexColor("#F90")
+	test.Error(t, err)
+	test.String(t, h.String(), "#ff9900")
+
+	h, err = NewHexColor("F90")
+	test.Error(t, err)
+	test.String(t, h.String(), "#ff9900")
+
+	h = HexColor{R: 95, G: 32, B: 72}
+	test.String(t, h.String(), "#5f2048")
+
+	// Test invalid data
+
+	h, err = NewHexColor("FF99")
+	if err != HexFormatError {
+		test.Fail(t, "Invalid hex code did not fail")
+	}
+
+	h, err = NewHexColor("foobar")
+	if err != HexFormatError {
+		test.Fail(t, "Invalid hex code did not fail")
+	}
+
+	// Test XML marshaling
+
+	h = HexColor{R: 255, G: 255, B: 255}
+
+	type xmlAttrTest struct {
+		ColorAttr HexColor `xml:"color,attr"`
+	}
+
+	xa := &xmlAttrTest{
+		ColorAttr: h,
+	}
+
+	body, _ := xml.Marshal(xa)
+	test.String(t, string(body[:]), "<xmlAttrTest color=\"#ffffff\"></xmlAttrTest>")
+
+	xa = &xmlAttrTest{}
+
+	xml.Unmarshal(body, xa)
+
+	test.That(t, xa.ColorAttr.R == 255)
+
+	type xmlTest struct {
+		Color HexColor `xml:"color"`
+	}
+
+	x := &xmlTest{
+		Color: h,
+	}
+
+	body, _ = xml.Marshal(x)
+	test.String(t, string(body[:]), "<xmlTest><color>#ffffff</color></xmlTest>")
+
+	x = &xmlTest{}
+
+	xml.Unmarshal(body, x)
+
+	test.That(t, x.Color.R == 255)
 }
 
 func TestToFromFixed(t *testing.T) {

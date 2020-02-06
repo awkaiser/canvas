@@ -2,6 +2,7 @@ package canvas
 
 import (
 	"encoding/hex"
+	"encoding/xml"
 	"fmt"
 	"image/color"
 	"math"
@@ -10,6 +11,13 @@ import (
 	"github.com/tdewolff/minify/v2"
 	"golang.org/x/image/math/fixed"
 )
+
+// Error type
+type Error string
+
+func (e Error) Error() string {
+	return string(e)
+}
 
 // Epsilon is the smallest number below which we assume the value to be zero. This is to avoid numerical floating point issues.
 var Epsilon = 1e-10
@@ -100,6 +108,77 @@ func (color CSSColor) String() string {
 	}
 	a := float64(color.A) / 255.0
 	return fmt.Sprintf("rgba(%d,%d,%d,%v)", int(float64(color.R)/a), int(float64(color.G)/a), int(float64(color.B)/a), dec(a))
+}
+
+// HexColor custom type (with XML marshaling)
+type HexColor color.RGBA
+
+const HexFormatError Error = Error("Value is not a hex color code")
+
+func NewHexColor(hex string) (h HexColor, err error) {
+	hex = strings.Replace(strings.TrimSpace(hex), "#", "", 1)
+
+	chars := len(hex)
+
+	h = HexColor{R: 0, G: 0, B: 0, A: 255}
+
+	if chars == 3 {
+		hex = fmt.Sprintf("%s%s%s%s%s%s", hex[0:1], hex[0:1], hex[1:2], hex[1:2], hex[2:3], hex[2:3])
+	} else if chars != 6 {
+		return h, HexFormatError
+	}
+
+	_, err = fmt.Sscanf(hex, "%02x%02x%02x", &h.R, &h.G, &h.B)
+
+	if err != nil {
+		return h, HexFormatError
+	}
+
+	return
+}
+
+func (h HexColor) String() (hex string) {
+	return fmt.Sprintf("#%02x%02x%02x", h.R, h.G, h.B)
+}
+
+func (h HexColor) MarshalXML(e *xml.Encoder, start xml.StartElement) (err error) {
+	return e.EncodeElement(h.String(), start)
+}
+
+func (h *HexColor) UnmarshalXML(d *xml.Decoder, start xml.StartElement) (err error) {
+	var s string
+
+	err = d.DecodeElement(&s, &start)
+	if err != nil {
+		return
+	}
+
+	c, err := NewHexColor(s)
+	if err != nil {
+		return
+	}
+
+	*h = c
+
+	return
+}
+
+func (h HexColor) MarshalXMLAttr(name xml.Name) (attr xml.Attr, err error) {
+	return xml.Attr{
+		Name:  name,
+		Value: h.String(),
+	}, nil
+}
+
+func (h *HexColor) UnmarshalXMLAttr(attr xml.Attr) (err error) {
+	c, err := NewHexColor(attr.Value)
+	if err != nil {
+		return
+	}
+
+	*h = c
+
+	return
 }
 
 ////////////////////////////////////////////////////////////////
