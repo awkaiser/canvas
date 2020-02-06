@@ -81,11 +81,11 @@ func TestHexColor(t *testing.T) {
 	h = HexColor{R: 255, G: 255, B: 255}
 
 	type xmlAttrTest struct {
-		ColorAttr HexColor `xml:"color,attr"`
+		ColorAttr *HexColor `xml:"color,attr,omitempty"`
 	}
 
 	xa := &xmlAttrTest{
-		ColorAttr: h,
+		ColorAttr: &h,
 	}
 
 	body, _ := xml.Marshal(xa)
@@ -97,12 +97,35 @@ func TestHexColor(t *testing.T) {
 
 	test.That(t, xa.ColorAttr.R == 255)
 
+	xa = &xmlAttrTest{
+		ColorAttr: nil,
+	}
+
+	body, _ = xml.Marshal(xa)
+	test.String(t, string(body[:]), "<xmlAttrTest></xmlAttrTest>")
+
+	body = []byte("<xmlAttrTest color=\"none\"></xmlAttrTest>")
+
+	xa = &xmlAttrTest{}
+
+	xml.Unmarshal(body, xa)
+
+	test.That(t, xa.ColorAttr.R == 0)
+
+	body = []byte("<xmlAttrTest></xmlAttrTest>")
+
+	xa = &xmlAttrTest{}
+
+	xml.Unmarshal(body, xa)
+
+	test.That(t, xa.ColorAttr == nil)
+
 	type xmlTest struct {
-		Color HexColor `xml:"color"`
+		Color *HexColor `xml:"color,omitempty"`
 	}
 
 	x := &xmlTest{
-		Color: h,
+		Color: &h,
 	}
 
 	body, _ = xml.Marshal(x)
@@ -113,6 +136,29 @@ func TestHexColor(t *testing.T) {
 	xml.Unmarshal(body, x)
 
 	test.That(t, x.Color.R == 255)
+
+	x = &xmlTest{
+		Color: nil,
+	}
+
+	body, _ = xml.Marshal(x)
+	test.String(t, string(body[:]), "<xmlTest></xmlTest>")
+
+	body = []byte("<xmlTest><color>none</color></xmlTest>")
+
+	x = &xmlTest{}
+
+	xml.Unmarshal(body, x)
+
+	test.That(t, x.Color.R == 0)
+
+	body = []byte("<xmlTest></xmlTest>")
+
+	x = &xmlTest{}
+
+	xml.Unmarshal(body, x)
+
+	test.That(t, x.Color == nil)
 }
 
 func TestToFromFixed(t *testing.T) {

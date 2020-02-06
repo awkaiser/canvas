@@ -154,13 +154,11 @@ func (h *HexColor) UnmarshalXML(d *xml.Decoder, start xml.StartElement) (err err
 	}
 
 	c, err := NewHexColor(s)
-	if err != nil {
-		return
+	if err == nil {
+		*h = c
 	}
 
-	*h = c
-
-	return
+	return nil
 }
 
 func (h HexColor) MarshalXMLAttr(name xml.Name) (attr xml.Attr, err error) {
@@ -172,13 +170,11 @@ func (h HexColor) MarshalXMLAttr(name xml.Name) (attr xml.Attr, err error) {
 
 func (h *HexColor) UnmarshalXMLAttr(attr xml.Attr) (err error) {
 	c, err := NewHexColor(attr.Value)
-	if err != nil {
-		return
+	if err == nil {
+		*h = c
 	}
 
-	*h = c
-
-	return
+	return nil
 }
 
 ////////////////////////////////////////////////////////////////
