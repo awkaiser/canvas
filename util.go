@@ -110,6 +110,7 @@ func (color CSSColor) String() string {
 	return fmt.Sprintf("rgba(%d,%d,%d,%v)", int(float64(color.R)/a), int(float64(color.G)/a), int(float64(color.B)/a), dec(a))
 }
 
+// TODO: Change to SvgColor & support "rgba()"
 // HexColor custom type (with XML marshaling)
 type HexColor color.RGBA
 

@@ -1,6 +1,7 @@
 package canvas
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
@@ -8,6 +9,7 @@ import (
 	"image/jpeg"
 	"image/png"
 	"os"
+	"strings"
 )
 
 const mmPerPt = 0.3527777777777778
@@ -331,6 +333,89 @@ func (c *Context) DrawImage(x, y float64, img image.Image, dpm float64) {
 
 	m := c.view.Translate(x, y).Scale(1.0/dpm, 1.0/dpm)
 	c.RenderImage(img, m)
+}
+
+// DrawSvg draws a SVG at position (x,y)
+func (c *Context) DrawSvg(x, y float64, svg *SvgXMLRoot) (err error) {
+	var vbX, vbY, vbWidth, vbHeight float64
+
+	_, err = fmt.Sscanf(svg.ViewBox, "%f %f %f %f", &vbX, &vbY, &vbWidth, &vbHeight)
+
+	// TODO: Draw SVG at appropriate scale
+
+	m := c.view.Translate(x, y)
+
+	fmt.Printf("SVG %.1fx%.1f (%s)\n", vbWidth, vbHeight, svg.ViewBox)
+	fmt.Printf("SVG Root Paths: %d\n", len(svg.Paths))
+
+	for _, p := range svg.Paths {
+		path, style := convertSvgPath(p)
+		// fmt.Printf("%+v\n", path.d)
+		fmt.Printf("%+v\n", style)
+		c.RenderPath(path, style, m)
+	}
+
+	for i, g := range svg.Groups {
+		fmt.Printf("SVG Group %d Paths: %d\n", i+1, len(g.Paths))
+
+		for _, p := range g.Paths {
+			path, style := convertSvgPath(p)
+			// fmt.Printf("%+v\n", path)
+			fmt.Printf("%+v\n", style)
+			c.RenderPath(path, style, m)
+		}
+	}
+
+	return
+}
+
+func convertSvgPath(svgPath SvgXMLPath) (path *Path, style Style) {
+	// Trim whitespace & remove line breaks
+	d := strings.ReplaceAll(strings.TrimSpace(svgPath.D), "\n", "")
+
+	// Remove redundant whitespace
+	d = strings.Join(strings.Fields(d), " ")
+
+	// Create path
+	path = MustParseSVG(d)
+
+	// Create style
+	style = DefaultStyle
+
+	// TODO: Parse "style" attr values
+
+	// style.Dashes = svgPath.StrokeDashArray // []float64
+	style.DashOffset = svgPath.StrokeDashOffset
+	// style.FillRule = svgPath.FillRule // FillRule
+	style.StrokeWidth = svgPath.StrokeWidth
+
+	if svgPath.Fill != nil {
+		style.FillColor = color.RGBA(*svgPath.Fill)
+	}
+
+	if svgPath.Stroke != nil {
+		style.StrokeColor = color.RGBA(*svgPath.Stroke)
+	}
+
+	switch svgPath.StrokeLineCap {
+	case "butt":
+		style.StrokeCapper = ButtCap
+	case "round":
+		style.StrokeCapper = RoundCap
+	case "square":
+		style.StrokeCapper = SquareCap
+	}
+
+	switch svgPath.StrokeLineJoin {
+	case "bevel":
+		style.StrokeJoiner = BevelJoin
+	case "round":
+		style.StrokeJoiner = RoundJoin
+	case "miter":
+		style.StrokeJoiner = MiterJoin
+	}
+
+	return
 }
 
 ////////////////////////////////////////////////////////////////

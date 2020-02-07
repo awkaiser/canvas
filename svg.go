@@ -3,13 +3,16 @@ package canvas
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/xml"
 	"fmt"
 	"image"
 	"image/color"
 	"image/jpeg"
 	"image/png"
 	"io"
+	"io/ioutil"
 	"math"
+	"regexp"
 	"strings"
 )
 
@@ -22,6 +25,122 @@ type SVG struct {
 	imgEnc        ImageEncoding
 
 	classes []string
+}
+
+// SvgXMLRoot root element (v1.1)
+type SvgXMLRoot struct {
+	XMLName xml.Name `xml:"svg"`
+
+	// Element attributes
+	Height  string `xml:"height,attr,omitempty"`
+	ViewBox string `xml:"viewBox,attr,omitempty"`
+	Width   string `xml:"width,attr,omitempty"`
+
+	// Children
+	Groups []SvgXMLGroup `xml:"g"`
+	Paths  []SvgXMLPath  `xml:"path"`
+}
+
+// SvgXMLGroup group container element (v1.1)
+type SvgXMLGroup struct {
+	XMLName xml.Name `xml:"g"`
+
+	// Element attributes
+	Class string `xml:"class,attr,omitempty"`
+	Style string `xml:"style,attr,omitempty"`
+
+	// TODO: Presentational attributes (children property inheritance)
+
+	// Children elements
+	Paths []SvgXMLPath `xml:"path"`
+}
+
+// SvgXMLPath path element (v1.1)
+type SvgXMLPath struct {
+	XMLName xml.Name `xml:"path"`
+
+	// Element attributes
+	Class      string  `xml:"class,attr,omitempty"`
+	D          string  `xml:"d,attr"`
+	PathLength float64 `xml:"pathLength,attr,omitempty"`
+	Style      string  `xml:"style,attr,omitempty"`
+	Transform  string  `xml:"transform,attr,omitempty"`
+
+	// Presentational attributes
+	AlignmentBaseline          string    `xml:"alignment-baseline,attr,omitempty"`
+	BaselineShift              string    `xml:"baseline-shift,attr,omitempty"`
+	Clip                       string    `xml:"clip,attr,omitempty"`
+	ClipPath                   string    `xml:"clip-path,attr,omitempty"`
+	ClipRule                   string    `xml:"clip-rule,attr,omitempty"`
+	Color                      string    `xml:"color,attr,omitempty"`
+	ColorInterpolation         string    `xml:"color-interpolation,attr,omitempty"`
+	ColorInterpolationFilters  string    `xml:"color-interpolation-filters,attr,omitempty"`
+	ColorProfile               string    `xml:"color-profile,attr,omitempty"`
+	ColorRendering             string    `xml:"color-rendering,attr,omitempty"`
+	Cursor                     string    `xml:"cursor,attr,omitempty"`
+	Direction                  string    `xml:"direction,attr,omitempty"`
+	Display                    string    `xml:"display,attr,omitempty"`
+	DominantBaseline           string    `xml:"dominant-baseline,attr,omitempty"`
+	EnableBackground           string    `xml:"enable-background,attr,omitempty"`
+	Fill                       *HexColor `xml:"fill,attr,omitempty"`
+	FillOpacity                float64   `xml:"fill-opacity,attr,omitempty"`
+	FillRule                   string    `xml:"fill-rule,attr,omitempty"`
+	Filter                     string    `xml:"filter,attr,omitempty"`
+	FloodColor                 string    `xml:"flood-color,attr,omitempty"`
+	FloodOpacity               float64   `xml:"flood-opacity,attr,omitempty"`
+	FontFamily                 string    `xml:"font-family,attr,omitempty"`
+	FontSize                   string    `xml:"font-size,attr,omitempty"`
+	FontSizeAdjust             string    `xml:"font-size-adjust,attr,omitempty"`
+	FontStretch                string    `xml:"font-stretch,attr,omitempty"`
+	FontStyle                  string    `xml:"font-style,attr,omitempty"`
+	FontVariant                string    `xml:"font-variant,attr,omitempty"`
+	FontWeight                 string    `xml:"font-weight,attr,omitempty"`
+	GlyphOrientationHorizontal string    `xml:"glyph-orientation-horizontal,attr,omitempty"`
+	GlyphOrientationVertical   string    `xml:"glyph-orientation-vertical,attr,omitempty"`
+	ImageRendering             string    `xml:"image-rendering,attr,omitempty"`
+	Kerning                    string    `xml:"kerning,attr,omitempty"`
+	LetterSpacing              string    `xml:"letter-spacing,attr,omitempty"`
+	LightingColor              string    `xml:"lighting-color,attr,omitempty"`
+	Marker                     string    `xml:"marker,attr,omitempty"`
+	MarkerEnd                  string    `xml:"marker-end,attr,omitempty"`
+	MarkerMid                  string    `xml:"marker-mid,attr,omitempty"`
+	MarkerStart                string    `xml:"marker-start,attr,omitempty"`
+	Mask                       string    `xml:"mask,attr,omitempty"`
+	Opacity                    float64   `xml:"opacity,attr,omitempty"`
+	Overflow                   string    `xml:"overflow,attr,omitempty"`
+	ShapeRendering             string    `xml:"shape-rendering,attr,omitempty"`
+	StopColor                  string    `xml:"stop-color,attr,omitempty"`
+	StopOpacity                float64   `xml:"stop-opacity,attr,omitempty"`
+	Stroke                     *HexColor `xml:"stroke,attr,omitempty"`
+	StrokeDashArray            string    `xml:"stroke-dasharray,attr,omitempty"`
+	StrokeDashOffset           float64   `xml:"stroke-dashoffset,attr,omitempty"`
+	StrokeLineCap              string    `xml:"stroke-linecap,attr,omitempty"`
+	StrokeLineJoin             string    `xml:"stroke-linejoin,attr,omitempty"`
+	StrokeMiterLimit           float64   `xml:"stroke-miterlimit,attr,omitempty"`
+	StrokeOpacity              float64   `xml:"stroke-opacity,attr,omitempty"`
+	StrokeWidth                float64   `xml:"stroke-width,attr,omitempty"`
+	TextAnchor                 string    `xml:"text-anchor,attr,omitempty"`
+	TextDecoration             string    `xml:"text-decoration,attr,omitempty"`
+	TextRendering              string    `xml:"text-rendering,attr,omitempty"`
+	UnicodeBidi                string    `xml:"unicode-bidi,attr,omitempty"`
+	Visibility                 string    `xml:"visibility,attr,omitempty"`
+	WordSpacing                string    `xml:"word-spacing,attr,omitempty"`
+	WritingMode                string    `xml:"writing-mode,attr,omitempty"`
+}
+
+var SvgPathDataRegex *regexp.Regexp = regexp.MustCompile(`(?i)(?P<command>[mzlhvcsqta]{1})(?P<floats>[\d., ]+)(?P<closePath>[z])?`)
+
+// LoadSVGFile loads and parses a scalabale vector graphics file.
+func LoadSVGFile(filename string) (svg *SvgXMLRoot, err error) {
+	svg = &SvgXMLRoot{}
+
+	file, err := ioutil.ReadFile(filename)
+
+	if err == nil {
+		err = xml.Unmarshal([]byte(file), svg)
+	}
+
+	return
 }
 
 // NewSVG creates a scalable vector graphics renderer.
